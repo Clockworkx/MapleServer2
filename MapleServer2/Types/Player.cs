@@ -297,15 +297,16 @@ namespace MapleServer2.Types
                 }
                 CombatCTS = new CancellationTokenSource();
                 CombatCTS.Token.Register(() => CombatCTS.Dispose());
-                StartCombatEnd(CombatCTS);
+                StartCombatStance(CombatCTS);
 
                 return skillCast;
             }
             return null;
         }
 
-        private Task StartCombatEnd(CancellationTokenSource ct)
+        private Task StartCombatStance(CancellationTokenSource ct)
         {
+            Session.FieldManager.BroadcastPacket(UserBattlePacket.UserBattle(Session.FieldPlayer, true));
             return Task.Run(async () =>
             {
                 await Task.Delay(5000);
@@ -314,7 +315,7 @@ namespace MapleServer2.Types
                 {
                     CombatCTS = null;
                     ct.Dispose();
-                    Session.FieldManager.BroadcastPacket(UserBattlePacket.UserBattle(Session.FieldPlayer, false));
+                    Session?.FieldManager.BroadcastPacket(UserBattlePacket.UserBattle(Session.FieldPlayer, false));
                 }
             }, ct.Token);
         }
@@ -448,7 +449,7 @@ namespace MapleServer2.Types
 
                         // TODO: Check if regen-enabled
                         Stats[statId] = AddStatRegen(statId, regenStatId);
-                        Session.Send(StatPacket.UpdateStats(Session.FieldPlayer, statId));
+                        Session?.FieldManager.BroadcastPacket(StatPacket.UpdateStats(Session.FieldPlayer, statId));
                         if (Party != null)
                         {
                             Party.BroadcastPacketParty(PartyPacket.UpdateHitpoints(this));
@@ -485,7 +486,7 @@ namespace MapleServer2.Types
         {
             if (!TrophyData.ContainsKey(trophyId))
             {
-                TrophyData[trophyId] = new Trophy(CharacterId, trophyId);
+                TrophyData[trophyId] = new Trophy(CharacterId, AccountId, trophyId);
             }
             TrophyData[trophyId].AddCounter(Session, addAmount);
             if (TrophyData[trophyId].Counter % sendUpdateInterval == 0)
@@ -507,6 +508,12 @@ namespace MapleServer2.Types
                     TrophyUpdate(23100001, 1);
                 }
             });
+        }
+
+        public void AddStatPoint(int amount, OtherStatsIndex index)
+        {
+            StatPointDistribution.AddTotalStatPoints(amount, index);
+            Session.Send(StatPointPacket.WriteTotalStatPoints(this));
         }
     }
 }
